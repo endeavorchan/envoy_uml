@@ -1,0 +1,179 @@
+title Classes - Class Diagram
+
+
+abstract class IoHandle {
+  +~IoHandle()
+
+  +api::IoCallUint64Result Close()
+
+  +bool IsOpen()
+
+  +api::IoCallUint64Result Readv(uint64_t max_length, buffer::RawSlice *slices, uint64_t num_slice)
+
+  +api::IoCallUint64Result Writev(const buffer::RawSlice *slices, uint64_t num_slice)
+
+  +api::IoCallUint64Result Read(network::IoHandle &io_handle, uint64_t max_length)
+
+  +api::IoCallUint64Result Write(network::IoHandle &io_handle)
+
+  +api::IoCallIntResult Bind(const agora::network::GeneralSocketAddress &address)
+
+  +api::IoCallIntResult Listen(int backlog)
+
+  +std::unique_ptr<IoHandle> Accept(struct sockaddr *addr, socklen_t addrlen)
+
+  +api::IoCallIntResult Connect(const agora::network::GeneralSocketAddress &address)
+
+  +api::IoCallIntResult SetOption(int level, int optname, const void *optval, socklen_t optlen)
+
+  +api::IoCallIntResult GetOpetion(int level, int optname, void *optval, socklen_t *optlen)
+
+  +api::IoCallIntResult SetBlocking(bool blocking)
+
+  +absl::optional<int> Domain()
+
+  +agora::network::GeneralSocketAddress LocalAddress()
+
+  +agora::network::GeneralSocketAddress PeerAddress()
+
+  +event::FileEventPtr CreateFileEvent(base::EventLoop *loop, event::FileReadyCb cb, event::FileTriggerType trigger, uint32_t events)
+}
+
+class IoSocketHandleImpl{
+  -int fd_;
+}
+
+IoHandle <|-- IoSocketHandleImpl
+
+abstract class Socket {
+  +agora::network::GeneralSocketAddress LocalAddress()
+
+  +void SetLocalAddress(const agora::network::GeneralSocketAddress& local_address)
+ 
+  +IoHandle& GetIoHandle()
+ 
+  +const IoHandle& GetIoHandle() const
+ 
+  +absl::optional<Address::IpVersion> IpVersion() const
+ 
+  +void Close()
+ 
+  +bool IsOpen() const
+ 
+  +IoCallIntResult Bind(const agora::network::GeneralSocketAddress& address)
+ 
+  +IoCallIntResult Listen(int backlog)
+ 
+  +IoCallIntResult Connect(const agora::network::GeneralSocketAddress& address)
+}
+
+class SocketImpl {
+  -Address::Type addr_type_
+  -const IoHandlePtr io_handle_
+  -agora::network::GeneralSocketAddress local_address_
+}
+
+Socket <|-- SocketImpl
+
+SocketImpl *-- IoSocketHandleImpl
+
+class ListenSocketImpl {
+}
+
+SocketImpl <|-- ListenSocketImpl
+
+abstract class ConnectionSocket {
+  const GeneralSocketAddress& RemoteAddress()
+  absl::string_view DetectedTransportProtocol()
+}
+
+class ConnectionSocketImpl {
+}
+
+ConnectionSocket <|-- ConnectionSocketImpl
+SocketImpl <|-- ConnectionSocketImpl
+
+interface TransportSocketCallbacks {
+}
+
+abstract class TransportSocket {
+  +void SetTransportSocketCallbacks(TransportSocketCallbacks& callbacks)
+  +IoResult DoRead(Buffer::Instance& buffer)
+  +IoResult DoWrite(Buffer::Instance& buffer, bool end_stream)
+  +void OnConnected()
+}
+
+abstract class TransportSocketFactory {
+  +bool ImplementsSecureTransport() const // check weather we support secure transport
+  +TransportSocketPtr CreateTransportSocket()
+}
+
+class WatermarkBuffer {
+}
+
+class ConnectionImpl {
+  -TransportSocketPtr transport_socket_
+  -ConnectionSocketPtr socket_
+  -WatermarkBuffer read_buffer_
+  -WatermarkBuffer write_buffer_
+  -bool connecting_
+  -Event::FileEventPtr file_event_
+  +State state() const override
+  +IoHandle& GetIoHandle()
+  +const IoHandle& GetIoHandle() const
+  +void onReadBufferLowWatermark();
+  +void onReadBufferHighWatermark();
+  +void onWriteBufferLowWatermark();
+  +void onWriteBufferHighWatermark();
+
+}
+
+abstract class Connection {
+  enum class State { Open, Closing, Closed }
+  +void AddConnectionCallbacks(ConnectionCallbacks& cb)
+  +void Close(ConnectionCloseType type)
+  +void NoDelay(bool enable) //config TCP NO_DELAY
+  +void ReadDisable(bool disable)
+  +bool ReadEnabled() const
+  +const GeneralSocketAddress& RemoteAddress() const
+  +const GeneralSocketAddress& LocalAddress() const
+  +State State() const
+  +void Write(Buffer::Instance& data, bool end_stream)
+  +bool AboveHighWatermark()
+}
+
+TransportSocketCallbacks <|-- ConnectionImpl
+Connection <|-- ConnectionImpl
+ConnectionImpl *-- WatermarkBuffer
+ConnectionImpl *-- TransportSocket
+ConnectionImpl *-- ConnectionSocket
+
+class RawBufferSocket {
+
+}
+
+class SslSocket {
+
+}
+
+TransportSocket <|-- RawBufferSocket
+TransportSocket <|-- SslSocket
+
+TransportSocketFactory ..> RawBufferSocket : create >
+TransportSocketFactory ..> SslSocket : create >
+
+class Application {
+  #Connection &conn
+  +void OnData(Instance &buffer)
+}
+
+class AgoraPacker {
+}
+
+class HttpConnection {
+}
+
+Application <|-- AgoraPacker
+Application <|-- HttpConnection
+
+Application ..> ConnectionImpl : reference >
